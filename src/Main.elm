@@ -51,6 +51,7 @@ type Msg
     = AddPlayer
     | InputPlayer String
     | RemovePlayer String
+    | StartMatches
 
 
 update : Msg -> Model -> Model
@@ -67,7 +68,53 @@ update msg model =
     (RemovePlayer player, Setup _) ->
         { model | players = Set.remove player model.players }
 
+    (StartMatches, _) ->
+        startMatches model
+
     _ -> model
+
+
+-- Create random assignment of people to partners/courts
+startMatches : Model -> Model
+startMatches model =
+  let
+    players = Set.toList <| model.players
+    matches = mkMatches players
+  in
+    { model | state = Playing matches }
+
+
+mkMatches : List String -> List Match
+mkMatches players =
+  let
+    go ps courtNum =
+      case ps of
+        [] -> []
+        [p] ->
+          [{court = courtNum, team1 = SinglesTeam p, team2 = SinglesTeam "Sub"}]
+        [p1, p2] ->
+          let
+            team1 = SinglesTeam p1
+            team2 = SinglesTeam p2
+          in
+            [{ court = courtNum, team1 = team1, team2 = team2 }]
+        [p1, p2, p3] ->
+          let
+            team1 = DoublesTeam p1 p2
+            team2 = DoublesTeam p3 "Sub"
+            match = { court = courtNum, team1 = team1, team2 = team2 }
+          in
+            [ match ]
+        (p1 :: p2 :: p3 :: p4 :: rest) ->
+          let
+            team1 = DoublesTeam p1 p2
+            team2 = DoublesTeam p3 p4
+            match = { court = courtNum, team1 = team1, team2 = team2 }
+          in
+            match :: go rest (courtNum + 1)
+
+  in
+    go players 1
 
 
 -- VIEW
@@ -79,6 +126,7 @@ view model =
         List.map viewPlayer (Set.toList model.players) ++
         [ input [ placeholder "name", value name, onInput InputPlayer ] []
         , button [ onClick AddPlayer ] [ text "Add Player" ]
+        , div [] [ button [ onClick StartMatches ] [ text "Start playing!" ] ]
         ]
     _ -> text "unsupported state"
 
