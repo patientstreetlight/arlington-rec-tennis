@@ -3,7 +3,7 @@ module Main exposing (main)
 import Browser
 import Dict exposing (Dict)
 import Set exposing (Set)
-import Html exposing (Html, button, div, input, text)
+import Html exposing (Html, button, div, input, text, span)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (..)
 
@@ -50,6 +50,7 @@ type alias Match =
 type Msg
     = AddPlayer
     | InputPlayer String
+    | RemovePlayer String
 
 
 update : Msg -> Model -> Model
@@ -62,6 +63,9 @@ update msg model =
 
     (AddPlayer, Setup player) ->
         { model | state = Setup "", players = Set.insert player model.players }
+
+    (RemovePlayer player, Setup _) ->
+        { model | players = Set.remove player model.players }
 
     _ -> model
 
@@ -80,4 +84,8 @@ view model =
 
 
 viewPlayer : String -> Html Msg
-viewPlayer name = div [] [ text name ]
+viewPlayer name =
+    div [] <|
+      [ button [ onClick (RemovePlayer name) ] [ text "X" ]
+      , text name
+      ]
