@@ -2,6 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Dict exposing (Dict)
+import Set exposing (Set)
 import Html exposing (Html, button, div, input, text)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (..)
@@ -11,7 +12,7 @@ main =
 
 -- MODEL
 type alias Model =
-    { players : List String
+    { players : Set String
     , state : State
     , pastTeams : List Team
     , scores : Dict String Int
@@ -20,7 +21,7 @@ type alias Model =
 
 initModel : Model
 initModel =
-    { players = []
+    { players = Set.empty
     , state = Setup ""
     , pastTeams = []
     , scores = Dict.empty
@@ -57,18 +58,12 @@ update msg model =
     (InputPlayer s, Setup _) ->
         { model | state = Setup s }
 
+    (AddPlayer, Setup "") -> model
+
     (AddPlayer, Setup player) ->
-        { model | state = Setup "", players = addPlayer player model.players }
+        { model | state = Setup "", players = Set.insert player model.players }
 
     _ -> model
-
-
--- XXX Would a Set be better?
-addPlayer : String -> List String -> List String
-addPlayer name players =
-  if name == "" || List.member name players
-  then players
-  else List.sort <| name :: players
 
 
 -- VIEW
@@ -77,7 +72,7 @@ view model =
   case model.state of
     Setup name ->
       div [] <|
-        List.map viewPlayer model.players ++
+        List.map viewPlayer (Set.toList model.players) ++
         [ input [ placeholder "name", value name, onInput InputPlayer ] []
         , button [ onClick AddPlayer ] [ text "Add Player" ]
         ]
