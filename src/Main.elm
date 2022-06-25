@@ -72,6 +72,7 @@ update msg model =
                 { model
                 | newPlayer = ""
                 , players = Set.insert player model.players
+                , scores = Dict.insert player 0 model.scores
                 }
 
     RemovePlayer player ->
@@ -146,7 +147,11 @@ view model = withHeader model <|
       div [] <|
         List.map viewMatch model.matches
 
-    Scores -> text "TODO: Scores tab"
+    Scores -> viewScores model.scores
+
+
+viewScores : Dict String Int -> Html Msg
+viewScores scores = text "TODO: Scores"
 
 
 -- XXX Highlight the selected state
