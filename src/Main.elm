@@ -126,10 +126,35 @@ view model =
         List.map viewPlayer (Set.toList model.players) ++
         [ input [ placeholder "name", value name, onInput InputPlayer ] []
         , button [ onClick AddPlayer ] [ text "Add Player" ]
-        , div [] [ button [ onClick StartMatches ] [ text "Start playing!" ] ]
+        , div [] [ button [ onClick StartMatches, disabled (Set.isEmpty model.players) ]
+            [ text "Start playing!" ] ]
         ]
+
+    Playing matches ->
+      div [] <|
+        List.map viewMatch matches
+
     _ -> text "unsupported state"
 
+
+viewMatch : Match -> Html Msg
+viewMatch match =
+  let
+    viewTeam team =
+      case team of
+        SinglesTeam p -> p
+        DoublesTeam p1 p2 -> p1 ++ "/" ++ p2
+    msg = String.concat
+      [ "Court "
+      , String.fromInt match.court
+      , ":"
+      , viewTeam match.team1
+      , " vs "
+      , viewTeam match.team2
+      ]
+  in
+    div [] <|
+      [ text msg ]
 
 viewPlayer : String -> Html Msg
 viewPlayer name =
