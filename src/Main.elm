@@ -13,8 +13,10 @@ main =
 -- MODEL
 type alias Model =
     { players : Set String
-    , state : State
+    , tab : Tab
     , pastTeams : List Team
+    , newPlayer : String
+    , matches : List Match
     , scores : Dict String Int
     }
 
@@ -22,16 +24,18 @@ type alias Model =
 initModel : Model
 initModel =
     { players = Set.empty
-    , state = Setup ""
+    , tab = Players
     , pastTeams = []
+    , newPlayer = ""
+    , matches = []
     , scores = Dict.empty
     }
 
 
-type State
-    = Setup String
-    | Playing (List Match)
-    | Done
+type Tab
+    = Players
+    | Matches
+    | Scores
 
 
 type Team
@@ -51,27 +55,33 @@ type Msg
     = AddPlayer
     | InputPlayer String
     | RemovePlayer String
-    | StartMatches
+    | FinishMatch
+    | SelectTab Tab
 
 
 update : Msg -> Model -> Model
 update msg model =
-  case (msg, model.state) of
-    (InputPlayer s, Setup _) ->
-        { model | state = Setup s }
+  case msg of
+    SelectTab t ->
+        { model | tab = t }
 
-    (AddPlayer, Setup "") -> model
+    AddPlayer ->
+        case model.newPlayer of
+            "" -> model
+            player ->
+                { model
+                | newPlayer = ""
+                , players = Set.insert player model.players
+                }
 
-    (AddPlayer, Setup player) ->
-        { model | state = Setup "", players = Set.insert player model.players }
-
-    (RemovePlayer player, Setup _) ->
+    RemovePlayer player ->
         { model | players = Set.remove player model.players }
 
-    (StartMatches, _) ->
-        startMatches model
+    InputPlayer name ->
+        { model | newPlayer = name }
 
-    _ -> model
+    FinishMatch -> model -- XXX
+
 
 
 -- Create random assignment of people to partners/courts
@@ -81,9 +91,13 @@ startMatches model =
     players = Set.toList <| model.players
     matches = mkMatches players
   in
-    { model | state = Playing matches }
+    { model | tab = Matches, matches = matches }
 
 
+-- This could use some work
+-- * try to pair players with lots of wins with those with fewer
+-- * try to pair singles players together of similar ability
+-- * add some randomization
 mkMatches : List String -> List Match
 mkMatches players =
   let
@@ -119,22 +133,31 @@ mkMatches players =
 
 -- VIEW
 view : Model -> Html Msg
-view model =
-  case model.state of
-    Setup name ->
+view model = withHeader model <|
+  case model.tab of
+    Players ->
       div [] <|
         List.map viewPlayer (Set.toList model.players) ++
-        [ input [ placeholder "name", value name, onInput InputPlayer ] []
+        [ input [ placeholder "name", value (model.newPlayer), onInput InputPlayer ] []
         , button [ onClick AddPlayer ] [ text "Add Player" ]
-        , div [] [ button [ onClick StartMatches, disabled (Set.isEmpty model.players) ]
-            [ text "Start playing!" ] ]
         ]
 
-    Playing matches ->
+    Matches ->
       div [] <|
-        List.map viewMatch matches
+        List.map viewMatch model.matches
 
-    _ -> text "unsupported state"
+    Scores -> text "TODO: Scores tab"
+
+
+-- XXX Highlight the selected state
+withHeader : Model -> Html Msg -> Html Msg
+withHeader model html =
+    div []
+      [ button [ onClick (SelectTab Players) ] [ text "Players "]
+      , button [ onClick (SelectTab Matches) ] [ text "Matches" ]
+      , button [ onClick (SelectTab Scores) ] [ text "Scores" ]
+      , div [] [ html ]
+      ]
 
 
 viewMatch : Match -> Html Msg
@@ -152,9 +175,15 @@ viewMatch match =
       , " vs "
       , viewTeam match.team2
       ]
+    finishButton = button [ onClick FinishMatch ] [ text "Finish" ]
   in
+    -- XXX Should show score once finished
+    -- XXX Have an 'edit' button to adjust score afterwards
+    -- XXX finish should somehow be able to say what the scores were
     div [] <|
-      [ text msg ]
+      [ text msg
+      , finishButton
+      ]
 
 viewPlayer : String -> Html Msg
 viewPlayer name =
