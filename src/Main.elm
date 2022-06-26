@@ -57,6 +57,7 @@ type Msg
     | RemovePlayer String
     | FinishMatch
     | SelectTab Tab
+    | CreateMatches
 
 
 update : Msg -> Model -> Model
@@ -75,12 +76,17 @@ update msg model =
                 , scores = Dict.insert player 0 model.scores
                 }
 
-    -- XXX remove player score
     RemovePlayer player ->
-        { model | players = Set.remove player model.players }
+        { model
+        | players = Set.remove player model.players
+        , scores = Dict.remove player model.scores
+        }
 
     InputPlayer name ->
         { model | newPlayer = name }
+
+    CreateMatches ->
+        startMatches model
 
     FinishMatch -> model -- XXX
 
@@ -145,8 +151,10 @@ view model = withHeader model <|
         ]
 
     Matches ->
-      div [] <|
-        List.map viewMatch model.matches
+      div [] <| List.concat
+        [ List.map viewMatch model.matches
+        , [ div [] [ button [ onClick CreateMatches ] [ text "Create new matches" ] ] ]
+        ]
 
     Scores -> viewScores model.scores
 
