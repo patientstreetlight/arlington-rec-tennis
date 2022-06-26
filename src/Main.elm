@@ -75,6 +75,7 @@ update msg model =
                 , scores = Dict.insert player 0 model.scores
                 }
 
+    -- XXX remove player score
     RemovePlayer player ->
         { model | players = Set.remove player model.players }
 
@@ -151,7 +152,12 @@ view model = withHeader model <|
 
 
 viewScores : Dict String Int -> Html Msg
-viewScores scores = text "TODO: Scores"
+viewScores scores =
+  let
+    viewScore (player, score) =
+        div [] [ text <| player ++ " " ++ String.fromInt score ]
+  in
+    div [] <| List.map viewScore <| Dict.toList scores
 
 
 -- XXX Highlight the selected state
