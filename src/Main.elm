@@ -1,5 +1,8 @@
-module Main exposing (main)
+module Main exposing (..)
 
+import Bootstrap.Button as Button
+import Bootstrap.CDN as CDN
+import Bootstrap.Grid as Grid
 import Browser
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -40,8 +43,18 @@ type Tab
 
 type Team
     = SinglesTeam String
+
+    -- A doubles team is canonically represented as 2 players with the
+    -- first being lexicographically lower/first.
     | DoublesTeam String String
 
+
+mkDoublesTeam : String -> String -> Team
+mkDoublesTeam p1 p2 =
+  if p1 < p2 then
+    DoublesTeam p1 p2
+  else
+    DoublesTeam p2 p1
 
 type alias Match =
     { court : Int
@@ -122,15 +135,15 @@ mkMatches players =
             [{ court = courtNum, team1 = team1, team2 = team2 }]
         [p1, p2, p3] ->
           let
-            team1 = DoublesTeam p1 p2
-            team2 = DoublesTeam p3 "Sub"
+            team1 = mkDoublesTeam p1 p2
+            team2 = mkDoublesTeam p3 "Sub"
             match = { court = courtNum, team1 = team1, team2 = team2 }
           in
             [ match ]
         (p1 :: p2 :: p3 :: p4 :: rest) ->
           let
-            team1 = DoublesTeam p1 p2
-            team2 = DoublesTeam p3 p4
+            team1 = mkDoublesTeam p1 p2
+            team2 = mkDoublesTeam p3 p4
             match = { court = courtNum, team1 = team1, team2 = team2 }
           in
             match :: go rest (courtNum + 1)
@@ -141,7 +154,7 @@ mkMatches players =
 
 -- VIEW
 view : Model -> Html Msg
-view model = withHeader model <|
+view model = withBootstrap <| withHeader model <|
   case model.tab of
     Players ->
       div [] <|
@@ -159,6 +172,13 @@ view model = withHeader model <|
     Scores -> viewScores model.scores
 
 
+withBootstrap : Html a -> Html a
+withBootstrap html =
+    Grid.container []
+        [ CDN.stylesheet
+        , html
+        ]
+
 viewScores : Dict String Int -> Html Msg
 viewScores scores =
   let
@@ -171,10 +191,18 @@ viewScores scores =
 -- XXX Highlight the selected state
 withHeader : Model -> Html Msg -> Html Msg
 withHeader model html =
+  let
+    mkButton tab label =
+        Button.button
+            [ Button.primary
+            , Button.attrs [ onClick (SelectTab tab) ]
+            ]
+            [ text label ]
+  in
     div []
-      [ button [ onClick (SelectTab Players) ] [ text "Players "]
-      , button [ onClick (SelectTab Matches) ] [ text "Matches" ]
-      , button [ onClick (SelectTab Scores) ] [ text "Scores" ]
+      [ mkButton Players "Players"
+      , mkButton Matches "Matches"
+      , mkButton Scores "Scores"
       , div [] [ html ]
       ]
 
