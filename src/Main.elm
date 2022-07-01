@@ -173,8 +173,8 @@ view model = withBootstrap <| withHeader model <|
         [ List.map viewMatch model.matches
         , [ div []
             [ Button.button
-                [ Button.primary,
-                Button.attrs [ onClick CreateMatches ]
+                [ Button.success
+                , Button.attrs [ onClick CreateMatches ]
                 ]
                 [ text "Create new matches" ] ] ]
         ]
