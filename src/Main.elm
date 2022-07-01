@@ -199,8 +199,11 @@ viewScores scores =
             , Grid.col [] [ text <| String.fromInt score ]
             ]
   in
-    Grid.container [] <|
-        List.map viewScore <| List.sortBy Tuple.second <| Dict.toList scores
+    Dict.toList scores
+        |> List.sortBy Tuple.second
+        |> List.reverse
+        |> List.map viewScore
+        |> Grid.container []
 
 
 -- XXX Highlight the selected state
