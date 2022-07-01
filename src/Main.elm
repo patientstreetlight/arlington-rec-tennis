@@ -3,6 +3,7 @@ module Main exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.CDN as CDN
 import Bootstrap.Grid as Grid
+import Bootstrap.Grid.Col as Col
 import Browser
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -188,14 +189,18 @@ withBootstrap html =
         , html
         ]
 
--- XXX sort by score
+
 viewScores : Dict String Int -> Html Msg
 viewScores scores =
   let
     viewScore (player, score) =
-        div [] [ text <| player ++ " " ++ String.fromInt score ]
+        Grid.row []
+            [ Grid.col [ Col.md1 ] [ text player ]
+            , Grid.col [] [ text <| String.fromInt score ]
+            ]
   in
-    div [] <| List.map viewScore <| List.sortBy Tuple.second <| Dict.toList scores
+    Grid.container [] <|
+        List.map viewScore <| List.sortBy Tuple.second <| Dict.toList scores
 
 
 -- XXX Highlight the selected state
