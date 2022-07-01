@@ -188,13 +188,14 @@ withBootstrap html =
         , html
         ]
 
+-- XXX sort by score
 viewScores : Dict String Int -> Html Msg
 viewScores scores =
   let
     viewScore (player, score) =
         div [] [ text <| player ++ " " ++ String.fromInt score ]
   in
-    div [] <| List.map viewScore <| Dict.toList scores
+    div [] <| List.map viewScore <| List.sortBy Tuple.second <| Dict.toList scores
 
 
 -- XXX Highlight the selected state
@@ -249,6 +250,11 @@ viewMatch match =
 viewPlayer : String -> Html Msg
 viewPlayer name =
     div [] <|
-      [ Button.button [ Button.attrs [ onClick (RemovePlayer name) ] ] [ text "X" ]
+      [ Button.button
+          [ Button.danger
+          , Button.small
+          , Button.attrs [ onClick (RemovePlayer name) ]
+          ]
+          [ text "X" ]
       , text name
       ]
