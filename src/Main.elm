@@ -6,7 +6,7 @@ import Bootstrap.Grid as Grid
 import Browser
 import Dict exposing (Dict)
 import Set exposing (Set)
-import Html exposing (Html, button, div, input, text, span)
+import Html exposing (Html, div, input, text, span)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (..)
 
@@ -160,13 +160,22 @@ view model = withBootstrap <| withHeader model <|
       div [] <|
         List.map viewPlayer (Set.toList model.players) ++
         [ input [ placeholder "name", value (model.newPlayer), onInput InputPlayer ] []
-        , button [ onClick AddPlayer ] [ text "Add Player" ]
+        , Button.button
+            [ Button.primary
+            , Button.attrs [ onClick AddPlayer ]
+            ]
+            [ text "Add Player" ]
         ]
 
     Matches ->
       div [] <| List.concat
         [ List.map viewMatch model.matches
-        , [ div [] [ button [ onClick CreateMatches ] [ text "Create new matches" ] ] ]
+        , [ div []
+            [ Button.button
+                [ Button.primary,
+                Button.attrs [ onClick CreateMatches ]
+                ]
+                [ text "Create new matches" ] ] ]
         ]
 
     Scores -> viewScores model.scores
@@ -222,7 +231,12 @@ viewMatch match =
       , " vs "
       , viewTeam match.team2
       ]
-    finishButton = button [ onClick FinishMatch ] [ text "Finish" ]
+    finishButton =
+        Button.button
+            [ Button.primary
+            , Button.attrs [ onClick FinishMatch ]
+            ]
+            [ text "Finish" ]
   in
     -- XXX Should show score once finished
     -- XXX Have an 'edit' button to adjust score afterwards
@@ -235,6 +249,6 @@ viewMatch match =
 viewPlayer : String -> Html Msg
 viewPlayer name =
     div [] <|
-      [ button [ onClick (RemovePlayer name) ] [ text "X" ]
+      [ Button.button [ Button.attrs [ onClick (RemovePlayer name) ] ] [ text "X" ]
       , text name
       ]
