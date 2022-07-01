@@ -1,13 +1,16 @@
 module Main exposing (..)
 
 import Bootstrap.Button as Button
+import Bootstrap.Card as Card
+import Bootstrap.Card.Block as Block
+import Bootstrap.Text as Text
 import Bootstrap.CDN as CDN
 import Bootstrap.Grid as Grid
 import Bootstrap.Grid.Col as Col
 import Browser
 import Dict exposing (Dict)
 import Set exposing (Set)
-import Html exposing (Html, div, input, text, span)
+import Html exposing (Html, div, input, text, span, h3)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (..)
 
@@ -230,30 +233,30 @@ viewMatch match =
   let
     viewTeam team =
       case team of
-        SinglesTeam p -> p
-        DoublesTeam p1 p2 -> p1 ++ "/" ++ p2
-    msg = String.concat
-      [ "Court "
-      , String.fromInt match.court
-      , ":"
-      , viewTeam match.team1
-      , " vs "
-      , viewTeam match.team2
-      ]
-    finishButton =
-        Button.button
-            [ Button.primary
-            , Button.attrs [ onClick FinishMatch ]
-            ]
-            [ text "Finish" ]
+        SinglesTeam p ->
+            text p
+        DoublesTeam p1 p2 ->
+            div []
+                [ div [] [ text p1 ]
+                , div [] [ text p2 ]
+                ]
   in
-    -- XXX Should show score once finished
-    -- XXX Have an 'edit' button to adjust score afterwards
-    -- XXX finish should somehow be able to say what the scores were
-    div [] <|
-      [ text msg
-      , finishButton
-      ]
+    Card.config
+        [ Card.outlineSuccess
+        ]
+        |> Card.block []
+            [ Block.titleH5 [] [ text <| "Court " ++ String.fromInt match.court ]
+            , Block.custom <|
+                Grid.container []
+                    [ Grid.row []
+                        [ Grid.col [] [ viewTeam match.team1 ]
+                        , Grid.col [] [ viewTeam match.team2 ]
+                        ]
+                    ]
+            , Block.custom <|
+                Button.button [ Button.primary ] [ text "Finish" ]
+            ]
+        |> Card.view
 
 viewPlayer : String -> Html Msg
 viewPlayer name =
