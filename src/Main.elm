@@ -277,7 +277,11 @@ viewScoreModal model =
                   [ teamInput scoreModal.match.team1 scoreModal.team1Score ScoreModalInputScore1
                   , teamInput scoreModal.match.team2 scoreModal.team2Score ScoreModalInputScore2
                   ]
-              |> Modal.footer [] []
+              |> Modal.footer []
+                  [ Button.button
+                      [ Button.primary, Button.attrs [ onClick ScoreModalSubmitScores ] ]
+                      [ text "Submit" ]
+                  ]
               |> Modal.view Modal.shown
               |> List.singleton
 
