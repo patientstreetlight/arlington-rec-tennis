@@ -3,6 +3,7 @@ module Main exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.Card as Card
 import Bootstrap.Card.Block as Block
+import Bootstrap.Modal as Modal
 import Bootstrap.Text as Text
 import Bootstrap.CDN as CDN
 import Bootstrap.Grid as Grid
@@ -13,6 +14,7 @@ import Set exposing (Set)
 import Html exposing (Html, div, input, text, span, h3)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (..)
+import Char exposing (isDigit)
 
 main =
   Browser.sandbox { init = initModel, update = update, view = view }
@@ -25,6 +27,7 @@ type alias Model =
     , newPlayer : String
     , matches : List Match
     , scores : Dict String Int
+    , scoreModal : Maybe ScoreModal
     }
 
 
@@ -36,6 +39,7 @@ initModel =
     , newPlayer = ""
     , matches = []
     , scores = Dict.empty
+    , scoreModal = Nothing
     }
 
 
@@ -67,14 +71,25 @@ type alias Match =
     }
 
 
+type alias ScoreModal =
+    { match : Match
+    , team1Score : String
+    , team2Score : String
+    }
+
+
 -- UPDATE
 type Msg
     = AddPlayer
     | InputPlayer String
     | RemovePlayer String
-    | FinishMatch
     | SelectTab Tab
     | CreateMatches
+    | CloseScoreModal
+    | OpenScoreModel Match
+    | ScoreModalSubmitScores
+    | ScoreModalInputScore1 String
+    | ScoreModalInputScore2 String
 
 
 update : Msg -> Model -> Model
@@ -104,8 +119,52 @@ update msg model =
 
     CreateMatches ->
         startMatches model
+    
+    CloseScoreModal ->
+        { model | scoreModal = Nothing }
+    
+    OpenScoreModel match ->
+        { model
+        | scoreModal = Just { match = match, team1Score = "", team2Score = "" }
+        }
+    
+    ScoreModalSubmitScores ->
+        case model.scoreModal of
+            Nothing -> model
+            Just scoreModal ->
+                { model
+                | scoreModal = Nothing
+                -- XXX also update scores
+                }
+    
+    ScoreModalInputScore1 score ->
+        updateScoreModal setModalScore1 score model
+    
+    ScoreModalInputScore2 score ->
+        updateScoreModal setModalScore2 score model
 
-    FinishMatch -> model -- XXX
+updateScoreModal : (String -> ScoreModal -> ScoreModal) -> String -> Model -> Model
+updateScoreModal setter newScore model =
+  let
+    setModalScore : ScoreModal -> ScoreModal
+    setModalScore modal =
+        if String.all isDigit newScore then
+            setter newScore modal
+        else
+            modal
+  in
+    { model
+    | scoreModal = Maybe.map setModalScore model.scoreModal
+    }
+
+
+setModalScore1 : String -> ScoreModal -> ScoreModal
+setModalScore1 newScore modal =
+    { modal | team1Score = newScore }
+
+setModalScore2 : String -> ScoreModal -> ScoreModal
+setModalScore2 newScore modal =
+    { modal | team2Score = newScore }
 
 
 
@@ -174,6 +233,7 @@ view model = withBootstrap <| withHeader model <|
     Matches ->
       div [] <| List.concat
         [ List.map viewMatch model.matches
+        , viewScoreModal model
         , [ div []
             [ Button.button
                 [ Button.success
@@ -183,6 +243,43 @@ view model = withBootstrap <| withHeader model <|
         ]
 
     Scores -> viewScores model.scores
+
+
+viewScoreModal : Model -> List (Html Msg)
+viewScoreModal model =
+  let
+    teamName : Team -> String
+    teamName team =
+        case team of
+            SinglesTeam p -> p
+            DoublesTeam p1 p2 -> p1 ++ " & " ++ p2
+    
+    teamInput : Team -> String -> (String -> Msg) -> Html Msg
+    teamInput team currentScore mkInputMessage =
+        div []
+            [ text <| teamName team
+            , input
+                [ onInput mkInputMessage
+                , pattern "[0-9]*"
+                , type_ "number"
+                , value currentScore
+                ]
+                []
+            ]
+  in
+    case model.scoreModal of
+        Nothing -> []
+        Just scoreModal ->
+            Modal.config CloseScoreModal
+              |> Modal.small
+              |> Modal.hideOnBackdropClick True
+              |> Modal.body []
+                  [ teamInput scoreModal.match.team1 scoreModal.team1Score ScoreModalInputScore1
+                  , teamInput scoreModal.match.team2 scoreModal.team2Score ScoreModalInputScore2
+                  ]
+              |> Modal.footer [] []
+              |> Modal.view Modal.shown
+              |> List.singleton
 
 
 withBootstrap : Html a -> Html a
@@ -254,7 +351,11 @@ viewMatch match =
                         ]
                     ]
             , Block.custom <|
-                Button.button [ Button.primary ] [ text "Finish" ]
+                Button.button
+                    [ Button.primary
+                    , Button.attrs [ onClick <| OpenScoreModel match ]
+                    ]
+                    [ text "Finish" ]
             ]
         |> Card.view
 
