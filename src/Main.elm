@@ -25,7 +25,7 @@ type alias Model =
     , tab : Tab
     , pastTeams : List Team
     , newPlayer : String
-    , matches : List Match
+    , matches : Dict Int Match
     , scores : Dict String Int
     , scoreModal : Maybe ScoreModal
     }
@@ -37,7 +37,7 @@ initModel =
     , tab = Players
     , pastTeams = []
     , newPlayer = ""
-    , matches = []
+    , matches = Dict.empty
     , scores = Dict.empty
     , scoreModal = Nothing
     }
@@ -65,8 +65,7 @@ mkDoublesTeam p1 p2 =
     DoublesTeam p2 p1
 
 type alias Match =
-    { court : Int
-    , team1 : Team
+    { team1 : Team
     , team2 : Team
     }
 
@@ -182,37 +181,45 @@ startMatches model =
 -- * try to pair players with lots of wins with those with fewer
 -- * try to pair singles players together of similar ability
 -- * add some randomization
-mkMatches : List String -> List Match
+mkMatches : List String -> Dict Int Match
 mkMatches players =
   let
-    go ps courtNum =
+    go : List String -> Int -> Dict Int Match -> Dict Int Match
+    go ps courtNum matches =
       case ps of
-        [] -> []
+        [] -> matches
         [p] ->
-          [{court = courtNum, team1 = SinglesTeam p, team2 = SinglesTeam "Sub"}]
+          Dict.insert
+              courtNum
+              { team1 = SinglesTeam p, team2 = SinglesTeam "Coach" }
+              matches
         [p1, p2] ->
           let
             team1 = SinglesTeam p1
             team2 = SinglesTeam p2
           in
-            [{ court = courtNum, team1 = team1, team2 = team2 }]
+            Dict.insert
+                courtNum
+                { team1 = team1, team2 = team2 }
+                matches
         [p1, p2, p3] ->
           let
             team1 = mkDoublesTeam p1 p2
-            team2 = mkDoublesTeam p3 "Sub"
-            match = { court = courtNum, team1 = team1, team2 = team2 }
+            team2 = mkDoublesTeam p3 "Coach"
+            match = { team1 = team1, team2 = team2 }
           in
-            [ match ]
+            Dict.insert courtNum match matches
         (p1 :: p2 :: p3 :: p4 :: rest) ->
           let
             team1 = mkDoublesTeam p1 p2
             team2 = mkDoublesTeam p3 p4
-            match = { court = courtNum, team1 = team1, team2 = team2 }
+            match = { team1 = team1, team2 = team2 }
+            newMatches = Dict.insert courtNum match matches
           in
-            match :: go rest (courtNum + 1)
+            go rest (courtNum + 1) newMatches
 
   in
-    go players 1
+    go players 1 Dict.empty
 
 
 -- VIEW
@@ -232,7 +239,7 @@ view model = withBootstrap <| withHeader model <|
 
     Matches ->
       div [] <| List.concat
-        [ List.map viewMatch model.matches
+        [ List.map viewMatch <| Dict.toList model.matches
         , viewScoreModal model
         , [ div []
             [ Button.button
@@ -329,8 +336,8 @@ withHeader model html =
       ]
 
 
-viewMatch : Match -> Html Msg
-viewMatch match =
+viewMatch : (Int, Match) -> Html Msg
+viewMatch (court, match) =
   let
     viewTeam team =
       case team of
@@ -346,7 +353,7 @@ viewMatch match =
         [ Card.outlineSuccess
         ]
         |> Card.block []
-            [ Block.titleH5 [] [ text <| "Court " ++ String.fromInt match.court ]
+            [ Block.titleH5 [] [ text <| "Court " ++ String.fromInt court ]
             , Block.custom <|
                 Grid.container []
                     [ Grid.row []
