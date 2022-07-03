@@ -399,9 +399,47 @@ withHeader model html =
       , div [] [ html ]
       ]
 
--- XXX should show score if match is finished
 viewMatch : (Int, Match) -> Html Msg
 viewMatch (court, match) =
+    case match.scores of
+        Nothing -> viewInProgressMatch court match
+        Just scores ->
+            viewFinishedMatch court match scores
+
+viewFinishedMatch : Int -> Match -> (Int, Int) -> Html Msg
+viewFinishedMatch court match (score1, score2) =
+  let
+    viewTeam team score =
+      case team of
+        SinglesTeam p ->
+            div []
+                [ div [] [ text p ]
+                , div [] [ text <| "(" ++ String.fromInt score ++ ")"]
+                ]
+        DoublesTeam p1 p2 ->
+            div []
+                [ div [] [ text p1 ]
+                , div [] [ text p2 ]
+                , div [] [ text <| "(" ++ String.fromInt score ++ ")" ]
+                ]
+  in
+    Card.config
+        [ Card.outlineSecondary
+        ]
+        |> Card.block []
+            [ Block.titleH5 [] [ text <| "Court " ++ String.fromInt court ]
+            , Block.custom <|
+                Grid.container []
+                    [ Grid.row []
+                        [ Grid.col [] [ viewTeam match.team1 score1 ]
+                        , Grid.col [] [ viewTeam match.team2 score2 ]
+                        ]
+                    ]
+            ]
+        |> Card.view
+
+viewInProgressMatch : Int -> Match -> Html Msg
+viewInProgressMatch court match =
   let
     viewTeam team =
       case team of
