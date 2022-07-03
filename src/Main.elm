@@ -67,8 +67,15 @@ mkDoublesTeam p1 p2 =
 type alias Match =
     { team1 : Team
     , team2 : Team
+    , scores : Maybe (Int, Int)
     }
 
+newMatch : Team -> Team -> Match
+newMatch t1 t2 =
+    { team1 = t1
+    , team2 = t2
+    , scores = Nothing
+    }
 
 type alias ScoreModal =
     { court : CourtNum
@@ -148,7 +155,6 @@ update msg model =
         updateScoreModal setModalScore2 score model
 
 
--- XXX should also somehow mark match as completed
 scoreModalSubmitScores : Model -> Model
 scoreModalSubmitScores model =
     case model.scoreModal of
@@ -186,11 +192,18 @@ scoreModalSubmitScores model =
                     model.scores
                     newScores
                     Dict.empty
-                    
+            
+            finishMatch : Match -> Match
+            finishMatch match =
+                { match | scores = Just (team1Score, team2Score) }
+            
+            updatedMatches =
+                Dict.update scoreModal.court (Maybe.map finishMatch) model.matches
           in
             { model
             | scores = mergedScores
             , scoreModal = Nothing
+            , matches = updatedMatches
             }
 
 updateScoreModal : (String -> ScoreModal -> ScoreModal) -> String -> Model -> Model
@@ -242,7 +255,7 @@ mkMatches players =
         [p] ->
           Dict.insert
               courtNum
-              { team1 = SinglesTeam p, team2 = SinglesTeam "Coach" }
+              (newMatch (SinglesTeam p) (SinglesTeam "Coach"))
               matches
         [p1, p2] ->
           let
@@ -251,20 +264,20 @@ mkMatches players =
           in
             Dict.insert
                 courtNum
-                { team1 = team1, team2 = team2 }
+                (newMatch team1 team2)
                 matches
         [p1, p2, p3] ->
           let
             team1 = mkDoublesTeam p1 p2
             team2 = mkDoublesTeam p3 "Coach"
-            match = { team1 = team1, team2 = team2 }
+            match = newMatch team1 team2
           in
             Dict.insert courtNum match matches
         (p1 :: p2 :: p3 :: p4 :: rest) ->
           let
             team1 = mkDoublesTeam p1 p2
             team2 = mkDoublesTeam p3 p4
-            match = { team1 = team1, team2 = team2 }
+            match = newMatch team1 team2
             newMatches = Dict.insert courtNum match matches
           in
             go rest (courtNum + 1) newMatches
@@ -386,7 +399,7 @@ withHeader model html =
       , div [] [ html ]
       ]
 
-
+-- XXX should show score if match is finished
 viewMatch : (Int, Match) -> Html Msg
 viewMatch (court, match) =
   let
@@ -399,6 +412,14 @@ viewMatch (court, match) =
                 [ div [] [ text p1 ]
                 , div [] [ text p2 ]
                 ]
+    
+    finishButton =
+        Button.button
+            [ Button.primary
+            , Button.attrs [ onClick <| OpenScoreModal (court, match) ]
+            ]
+            [ text "Finish" ]
+                
   in
     Card.config
         [ Card.outlineSuccess
@@ -412,12 +433,7 @@ viewMatch (court, match) =
                         , Grid.col [] [ viewTeam match.team2 ]
                         ]
                     ]
-            , Block.custom <|
-                Button.button
-                    [ Button.primary
-                    , Button.attrs [ onClick <| OpenScoreModal (court, match) ]
-                    ]
-                    [ text "Finish" ]
+            , Block.custom finishButton
             ]
         |> Card.view
 
