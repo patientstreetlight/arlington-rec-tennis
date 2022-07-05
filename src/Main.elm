@@ -177,21 +177,18 @@ scoreModalSubmitScores model =
             team1Score = parseScore scoreModal.team1Score
             team2Score = parseScore scoreModal.team2Score
 
-            newScores =
-                Dict.fromList
-                    <| List.concat
-                        [ List.map (\p -> (p, team1Score)) team1Players
-                        , List.map (\p -> (p, team2Score)) team2Players
-                        ]
+            addToScore : (String, Int) -> Dict String Int -> Dict String Int
+            addToScore (player, score) scores =
+                Dict.update player (Maybe.map ((+) score)) scores
+
+            playersWithScores =
+                List.concat
+                    [ List.map (\p -> (p, team1Score)) team1Players
+                    , List.map (\p -> (p, team2Score)) team2Players
+                    ]
             
-            mergedScores =
-                Dict.merge
-                    (\player score scores -> Dict.insert player score scores)
-                    (\player score1 score2 scores -> Dict.insert player (score1 + score2) scores)
-                    (\player score scores -> scores)
-                    model.scores
-                    newScores
-                    Dict.empty
+            updatedScores =
+                List.foldl addToScore model.scores playersWithScores
             
             finishMatch : Match -> Match
             finishMatch match =
@@ -201,7 +198,7 @@ scoreModalSubmitScores model =
                 Dict.update scoreModal.court (Maybe.map finishMatch) model.matches
           in
             { model
-            | scores = mergedScores
+            | scores = updatedScores
             , scoreModal = Nothing
             , matches = updatedMatches
             }
