@@ -15,9 +15,16 @@ import Html exposing (Html, div, input, text, span, h3)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (..)
 import Char exposing (isDigit)
+import Random.List exposing (shuffle)
+import Random exposing (generate)
 
 main =
-  Browser.sandbox { init = initModel, update = update, view = view }
+  Browser.element
+      { init = \() -> (initModel, Cmd.none)
+      , update = update
+      , view = view
+      , subscriptions = \_ -> Sub.none
+      }
 
 -- MODEL
 type alias Model =
@@ -100,16 +107,20 @@ type Msg
     | ScoreModalSubmitScores
     | ScoreModalInputScore1 String
     | ScoreModalInputScore2 String
+    | ShuffledPlayers (List String)
 
 
-update : Msg -> Model -> Model
+withNoneCmd : Model -> (Model, Cmd Msg)
+withNoneCmd model = (model, Cmd.none)
+
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     SelectTab t ->
-        { model | tab = t }
+        { model | tab = t } |> withNoneCmd
 
     AddPlayer ->
-        case model.newPlayer of
+        withNoneCmd <| case model.newPlayer of
             "" -> model
             player ->
                 { model
@@ -122,16 +133,19 @@ update msg model =
         { model
         | players = Set.remove player model.players
         , scores = Dict.remove player model.scores
-        }
+        } |> withNoneCmd
 
     InputPlayer name ->
-        { model | newPlayer = name }
+        { model | newPlayer = name } |> withNoneCmd
 
     CreateMatches ->
-        startMatches model
+        (model, randomPlayersCmd model)
+    
+    ShuffledPlayers shuffledPlayers ->
+        startMatches shuffledPlayers model |> withNoneCmd
     
     CloseScoreModal ->
-        { model | scoreModal = Nothing }
+        { model | scoreModal = Nothing } |> withNoneCmd
     
     OpenScoreModal (courtNum, match) ->
         { model
@@ -143,16 +157,16 @@ update msg model =
                 , team1Score = ""
                 , team2Score = ""
                 }
-        }
+        } |> withNoneCmd
     
     ScoreModalSubmitScores ->
-        scoreModalSubmitScores model
+        scoreModalSubmitScores model |> withNoneCmd
     
     ScoreModalInputScore1 score ->
-        updateScoreModal setModalScore1 score model
+        updateScoreModal setModalScore1 score model |> withNoneCmd
     
     ScoreModalInputScore2 score ->
-        updateScoreModal setModalScore2 score model
+        updateScoreModal setModalScore2 score model |> withNoneCmd
 
 
 scoreModalSubmitScores : Model -> Model
@@ -229,13 +243,17 @@ setModalScore2 newScore modal =
 
 
 -- Create random assignment of people to partners/courts
-startMatches : Model -> Model
-startMatches model =
+startMatches : List String -> Model -> Model
+startMatches randomizedPlayers model =
   let
-    players = Set.toList <| model.players
-    matches = mkMatches players
+    matches = mkMatches randomizedPlayers
   in
     { model | tab = Matches, matches = matches }
+
+
+randomPlayersCmd : Model -> Cmd Msg
+randomPlayersCmd model =
+    generate ShuffledPlayers <| shuffle <| Set.toList model.players
 
 
 -- This could use some work
