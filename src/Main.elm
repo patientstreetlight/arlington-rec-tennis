@@ -4,6 +4,7 @@ import Bootstrap.Button as Button
 import Bootstrap.Card as Card
 import Bootstrap.Card.Block as Block
 import Bootstrap.Modal as Modal
+import Bootstrap.Table as Table
 import Bootstrap.Text as Text
 import Bootstrap.CDN as CDN
 import Bootstrap.Grid as Grid
@@ -376,16 +377,23 @@ viewScores : Dict String Int -> Html Msg
 viewScores scores =
   let
     viewScore (player, score) =
-        Grid.row []
-            [ Grid.col [ Col.md1 ] [ text player ]
-            , Grid.col [] [ text <| String.fromInt score ]
+        Table.tr []
+            [ Table.td [] [ text player ]
+            , Table.td [] [ text <| String.fromInt score ]
             ]
+
+    descendingScores =
+        Dict.toList scores |> List.sortBy Tuple.second |> List.reverse
   in
-    Dict.toList scores
-        |> List.sortBy Tuple.second
-        |> List.reverse
-        |> List.map viewScore
-        |> Grid.container []
+    Table.table
+        { options = []
+        , thead = Table.simpleThead
+            [ Table.th [] [ text "Player" ]
+            , Table.th [] [ text "Score" ]
+            ]
+        , tbody =
+            Table.tbody [] <| List.map viewScore descendingScores
+        }
 
 
 -- XXX Highlight the selected state
