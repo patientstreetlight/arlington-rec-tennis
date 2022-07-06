@@ -303,7 +303,7 @@ mkMatches players =
 
 -- VIEW
 view : Model -> Html Msg
-view model = withBootstrap <| withHeader model <|
+view model = withHeader model <|
   case model.tab of
     Players ->
       div [] <|
@@ -370,14 +370,6 @@ viewScoreModal model =
                   ]
               |> Modal.view Modal.shown
               |> List.singleton
-
-
-withBootstrap : Html a -> Html a
-withBootstrap html =
-    Grid.container []
-        [ CDN.stylesheet
-        , html
-        ]
 
 
 viewScores : Dict String Int -> Html Msg
