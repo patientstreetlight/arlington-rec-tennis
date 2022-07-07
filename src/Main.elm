@@ -35,7 +35,7 @@ type alias Model =
     , newPlayer : String
     , matches : Dict CourtNum Match
     , scores : Dict String Int
-    , scoreModal : Maybe ScoreModal
+    , modal : Maybe Modal
     }
 
 
@@ -47,7 +47,7 @@ initModel =
     , newPlayer = ""
     , matches = Dict.empty
     , scores = Dict.empty
-    , scoreModal = Nothing
+    , modal = Nothing
     }
 
 
@@ -85,10 +85,12 @@ newMatch t1 t2 =
     , scores = Nothing
     }
 
-type alias ScoreModal =
+type Modal
+    = ScoreModal ScoreInput
+
+type alias ScoreInput =
     { court : CourtNum
-    , team1 : Team
-    , team2 : Team
+    , match : Match
     , team1Score : String
     , team2Score : String
     }
@@ -103,7 +105,7 @@ type Msg
     | RemovePlayer String
     | SelectTab Tab
     | CreateMatches
-    | CloseScoreModal
+    | CloseModal
     | OpenScoreModal (CourtNum, Match)
     | ScoreModalSubmitScores
     | ScoreModalInputScore1 String
@@ -145,20 +147,11 @@ update msg model =
     ShuffledPlayers shuffledPlayers ->
         startMatches shuffledPlayers model |> withNoneCmd
     
-    CloseScoreModal ->
-        { model | scoreModal = Nothing } |> withNoneCmd
+    CloseModal ->
+        { model | modal = Nothing } |> withNoneCmd
     
-    OpenScoreModal (courtNum, match) ->
-        { model
-        | scoreModal =
-            Just
-                { court = courtNum
-                , team1 = match.team1
-                , team2 = match.team2
-                , team1Score = ""
-                , team2Score = ""
-                }
-        } |> withNoneCmd
+    OpenScoreModal courtAndMatch ->
+        openScoreModal courtAndMatch model |> withNoneCmd
     
     ScoreModalSubmitScores ->
         scoreModalSubmitScores model |> withNoneCmd
@@ -169,12 +162,30 @@ update msg model =
     ScoreModalInputScore2 score ->
         updateScoreModal setModalScore2 score model |> withNoneCmd
 
+openScoreModal : (Int, Match) -> Model -> Model
+openScoreModal (courtNum, match) model =
+  let
+    (team1Score, team2Score) =
+        case match.scores of
+            Nothing -> ("", "")
+            Just (score1, score2) ->
+                (String.fromInt score1, String.fromInt score2)
+  in
+    { model
+    | modal =
+        Just <| ScoreModal
+            { court = courtNum
+            , match = match
+            , team1Score = team1Score
+            , team2Score = team2Score
+            }
+    }
 
 scoreModalSubmitScores : Model -> Model
 scoreModalSubmitScores model =
-    case model.scoreModal of
+    case model.modal of
         Nothing -> model
-        Just scoreModal ->
+        Just (ScoreModal scoreModal) ->
           let
             players : Team -> List String
             players team =
@@ -186,24 +197,27 @@ scoreModalSubmitScores model =
             parseScore score =
                 String.toInt score |> Maybe.withDefault 0
             
-            team1Players = players scoreModal.team1
-            team2Players = players scoreModal.team2
+            team1Players = players scoreModal.match.team1
+            team2Players = players scoreModal.match.team2
 
             team1Score = parseScore scoreModal.team1Score
             team2Score = parseScore scoreModal.team2Score
+
+            (oldTeam1Score, oldTeam2Score) =
+                Maybe.withDefault (0, 0) scoreModal.match.scores
 
             addToScore : (String, Int) -> Dict String Int -> Dict String Int
             addToScore (player, score) scores =
                 Dict.update player (Maybe.map ((+) score)) scores
 
-            playersWithScores =
+            playersWithScoreDeltas =
                 List.concat
-                    [ List.map (\p -> (p, team1Score)) team1Players
-                    , List.map (\p -> (p, team2Score)) team2Players
+                    [ List.map (\p -> (p, team1Score - oldTeam1Score)) team1Players
+                    , List.map (\p -> (p, team2Score - oldTeam2Score)) team2Players
                     ]
             
             updatedScores =
-                List.foldl addToScore model.scores playersWithScores
+                List.foldl addToScore model.scores playersWithScoreDeltas
             
             finishMatch : Match -> Match
             finishMatch match =
@@ -214,30 +228,31 @@ scoreModalSubmitScores model =
           in
             { model
             | scores = updatedScores
-            , scoreModal = Nothing
+            , modal = Nothing
             , matches = updatedMatches
             }
 
-updateScoreModal : (String -> ScoreModal -> ScoreModal) -> String -> Model -> Model
+updateScoreModal : (String -> ScoreInput -> ScoreInput) -> String -> Model -> Model
 updateScoreModal setter newScore model =
   let
-    setModalScore : ScoreModal -> ScoreModal
+    setModalScore : ScoreInput -> ScoreInput
     setModalScore modal =
         if String.all isDigit newScore then
             setter newScore modal
         else
             modal
   in
-    { model
-    | scoreModal = Maybe.map setModalScore model.scoreModal
-    }
+    case model.modal of
+        Just (ScoreModal scoreModal) ->
+            { model | modal = Just <| ScoreModal <| setModalScore scoreModal }
+        _ -> model
 
 
-setModalScore1 : String -> ScoreModal -> ScoreModal
+setModalScore1 : String -> ScoreInput -> ScoreInput
 setModalScore1 newScore modal =
     { modal | team1Score = newScore }
 
-setModalScore2 : String -> ScoreModal -> ScoreModal
+setModalScore2 : String -> ScoreInput -> ScoreInput
 setModalScore2 newScore modal =
     { modal | team2Score = newScore }
 
@@ -304,7 +319,7 @@ mkMatches players =
 
 -- VIEW
 view : Model -> Html Msg
-view model = withHeader model <|
+view model = withHeader model <| withModal model <|
   case model.tab of
     Players ->
       div [] <|
@@ -320,7 +335,6 @@ view model = withHeader model <|
     Matches ->
       div [] <| List.concat
         [ List.map viewMatch <| Dict.toList model.matches
-        , viewScoreModal model
         , [ div []
             [ Button.button
                 [ Button.success
@@ -332,8 +346,8 @@ view model = withHeader model <|
     Scores -> viewScores model.scores
 
 
-viewScoreModal : Model -> List (Html Msg)
-viewScoreModal model =
+viewScoreModal : Model -> ScoreInput -> Modal.Config Msg -> Modal.Config Msg
+viewScoreModal model scoreModal modalCfg =
   let
     teamName : Team -> String
     teamName team =
@@ -354,23 +368,16 @@ viewScoreModal model =
                 []
             ]
   in
-    case model.scoreModal of
-        Nothing -> []
-        Just scoreModal ->
-            Modal.config CloseScoreModal
-              |> Modal.small
-              |> Modal.hideOnBackdropClick True
-              |> Modal.body []
-                  [ teamInput scoreModal.team1 scoreModal.team1Score ScoreModalInputScore1
-                  , teamInput scoreModal.team2 scoreModal.team2Score ScoreModalInputScore2
-                  ]
-              |> Modal.footer []
-                  [ Button.button
-                      [ Button.primary, Button.attrs [ onClick ScoreModalSubmitScores ] ]
-                      [ text "Submit" ]
-                  ]
-              |> Modal.view Modal.shown
-              |> List.singleton
+    modalCfg
+      |> Modal.body []
+          [ teamInput scoreModal.match.team1 scoreModal.team1Score ScoreModalInputScore1
+          , teamInput scoreModal.match.team2 scoreModal.team2Score ScoreModalInputScore2
+          ]
+      |> Modal.footer []
+          [ Button.button
+              [ Button.primary, Button.attrs [ onClick ScoreModalSubmitScores ] ]
+              [ text "Submit" ]
+          ]
 
 
 viewScores : Dict String Int -> Html Msg
@@ -414,6 +421,25 @@ withHeader model html =
       , div [] [ html ]
       ]
 
+withModal : Model -> Html Msg -> Html Msg
+withModal model html =
+    case model.modal of
+        Nothing -> html
+        Just modal ->
+          let
+            mkModal =
+                case modal of
+                    ScoreModal scoreModal -> viewScoreModal model scoreModal
+          in
+            div []
+                [ html
+                , Modal.config CloseModal
+                    |> Modal.small
+                    |> Modal.hideOnBackdropClick True
+                    |> mkModal
+                    |> Modal.view Modal.shown
+                ]
+
 viewMatch : (Int, Match) -> Html Msg
 viewMatch (court, match) =
     case match.scores of
@@ -437,6 +463,13 @@ viewFinishedMatch court match (score1, score2) =
                 , div [] [ text p2 ]
                 , div [] [ text <| "(" ++ String.fromInt score ++ ")" ]
                 ]
+
+    editButton =
+        Button.button
+            [ Button.secondary
+            , Button.attrs [ onClick <| OpenScoreModal (court, match) ]
+            ]
+            [ text "Edit" ]
   in
     Card.config
         [ Card.outlineSecondary
@@ -450,6 +483,7 @@ viewFinishedMatch court match (score1, score2) =
                         , Grid.col [] [ viewTeam match.team2 score2 ]
                         ]
                     ]
+            , Block.custom editButton
             ]
         |> Card.view
 
