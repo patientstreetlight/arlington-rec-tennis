@@ -87,6 +87,7 @@ newMatch t1 t2 =
 
 type Modal
     = ScoreModal ScoreInput
+    | ConfirmNewMatchesModal
 
 type alias ScoreInput =
     { court : CourtNum
@@ -111,6 +112,7 @@ type Msg
     | ScoreModalInputScore1 String
     | ScoreModalInputScore2 String
     | ShuffledPlayers (List String)
+    | ConfirmNewMatches
 
 
 withNoneCmd : Model -> (Model, Cmd Msg)
@@ -142,7 +144,10 @@ update msg model =
         { model | newPlayer = name } |> withNoneCmd
 
     CreateMatches ->
-        (model, randomPlayersCmd model)
+        createMatches model
+    
+    ConfirmNewMatches ->
+        confirmNewMatches model
     
     ShuffledPlayers shuffledPlayers ->
         startMatches shuffledPlayers model |> withNoneCmd
@@ -161,6 +166,30 @@ update msg model =
     
     ScoreModalInputScore2 score ->
         updateScoreModal setModalScore2 score model |> withNoneCmd
+
+createMatches : Model -> (Model, Cmd Msg)
+createMatches model =
+  let
+    isUnfinished match =
+        case match.scores of
+            Nothing -> True
+            Just _ -> False
+
+    thereAreUnfinishedMatches =
+        Dict.values model.matches |> List.any isUnfinished
+  in
+    if thereAreUnfinishedMatches then
+        ( { model | modal = Just ConfirmNewMatchesModal }
+        , Cmd.none
+        )
+    else
+        (model, randomPlayersCmd model)
+
+confirmNewMatches : Model -> (Model, Cmd Msg)
+confirmNewMatches model =
+    ( { model | modal = Nothing }
+    , randomPlayersCmd model
+    )
 
 openScoreModal : (Int, Match) -> Model -> Model
 openScoreModal (courtNum, match) model =
@@ -184,53 +213,57 @@ openScoreModal (courtNum, match) model =
 scoreModalSubmitScores : Model -> Model
 scoreModalSubmitScores model =
     case model.modal of
-        Nothing -> model
         Just (ScoreModal scoreModal) ->
-          let
-            players : Team -> List String
-            players team =
-                case team of
-                    SinglesTeam p -> [p]
-                    DoublesTeam p1 p2 -> [p1, p2]
-            
-            parseScore : String -> Int
-            parseScore score =
-                String.toInt score |> Maybe.withDefault 0
-            
-            team1Players = players scoreModal.match.team1
-            team2Players = players scoreModal.match.team2
+            submitScores model scoreModal
+        _ -> model
 
-            team1Score = parseScore scoreModal.team1Score
-            team2Score = parseScore scoreModal.team2Score
+submitScores : Model -> ScoreInput -> Model
+submitScores model scoreModal =
+  let
+    players : Team -> List String
+    players team =
+        case team of
+            SinglesTeam p -> [p]
+            DoublesTeam p1 p2 -> [p1, p2]
+    
+    parseScore : String -> Int
+    parseScore score =
+        String.toInt score |> Maybe.withDefault 0
+    
+    team1Players = players scoreModal.match.team1
+    team2Players = players scoreModal.match.team2
 
-            (oldTeam1Score, oldTeam2Score) =
-                Maybe.withDefault (0, 0) scoreModal.match.scores
+    team1Score = parseScore scoreModal.team1Score
+    team2Score = parseScore scoreModal.team2Score
 
-            addToScore : (String, Int) -> Dict String Int -> Dict String Int
-            addToScore (player, score) scores =
-                Dict.update player (Maybe.map ((+) score)) scores
+    (oldTeam1Score, oldTeam2Score) =
+        Maybe.withDefault (0, 0) scoreModal.match.scores
 
-            playersWithScoreDeltas =
-                List.concat
-                    [ List.map (\p -> (p, team1Score - oldTeam1Score)) team1Players
-                    , List.map (\p -> (p, team2Score - oldTeam2Score)) team2Players
-                    ]
-            
-            updatedScores =
-                List.foldl addToScore model.scores playersWithScoreDeltas
-            
-            finishMatch : Match -> Match
-            finishMatch match =
-                { match | scores = Just (team1Score, team2Score) }
-            
-            updatedMatches =
-                Dict.update scoreModal.court (Maybe.map finishMatch) model.matches
-          in
-            { model
-            | scores = updatedScores
-            , modal = Nothing
-            , matches = updatedMatches
-            }
+    addToScore : (String, Int) -> Dict String Int -> Dict String Int
+    addToScore (player, score) scores =
+        Dict.update player (Maybe.map ((+) score)) scores
+
+    playersWithScoreDeltas =
+        List.concat
+            [ List.map (\p -> (p, team1Score - oldTeam1Score)) team1Players
+            , List.map (\p -> (p, team2Score - oldTeam2Score)) team2Players
+            ]
+    
+    updatedScores =
+        List.foldl addToScore model.scores playersWithScoreDeltas
+    
+    finishMatch : Match -> Match
+    finishMatch match =
+        { match | scores = Just (team1Score, team2Score) }
+    
+    updatedMatches =
+        Dict.update scoreModal.court (Maybe.map finishMatch) model.matches
+  in
+    { model
+    | scores = updatedScores
+    , modal = Nothing
+    , matches = updatedMatches
+    }
 
 updateScoreModal : (String -> ScoreInput -> ScoreInput) -> String -> Model -> Model
 updateScoreModal setter newScore model =
@@ -379,6 +412,19 @@ viewScoreModal model scoreModal modalCfg =
               [ text "Submit" ]
           ]
 
+viewConfirmNewMatchesModal : Modal.Config Msg -> Modal.Config Msg
+viewConfirmNewMatchesModal modalCfg =
+    modalCfg
+        |> Modal.body []
+            [ text "Create new matches even though some are still unfinished?" ]
+        |> Modal.footer []
+            [ Button.button
+                [ Button.success, Button.attrs [ onClick ConfirmNewMatches ] ]
+                [ text "Confirm" ]
+            , Button.button
+                [ Button.danger, Button.attrs [ onClick CloseModal ] ]
+                [ text "Nevermind!" ]
+            ]
 
 viewScores : Dict String Int -> Html Msg
 viewScores scores =
@@ -430,6 +476,7 @@ withModal model html =
             mkModal =
                 case modal of
                     ScoreModal scoreModal -> viewScoreModal model scoreModal
+                    ConfirmNewMatchesModal -> viewConfirmNewMatchesModal
           in
             div []
                 [ html
